@@ -11,19 +11,30 @@ import PKHUD
 
 class PhotosViewController: UIViewController {
     
-    private var viewModel: PhotosViewModel?
+    private var viewModel: PhotosViewModel = PhotosViewModel()
     private var imageLoader = ImageCacheLoader()
+    
+    let collectionMargin = CGFloat(10)
+    let itemSpacing = CGFloat(10)
+    let itemHeight = CGFloat(322)
+    
+    var itemWidth = CGFloat(0)
+    var currentItem = 0 {
+        didSet {
+            page = currentItem + 1
+        }
+    }
+    var page = 1
 
     @IBOutlet weak var collectionView: UICollectionView!
-
+    @IBOutlet weak var pagesLabel: UILabel!
+    
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        collectionView.dataSource = self
-        collectionView.delegate = self
+        setup()
         
-        viewModel = PhotosViewModel()
-        viewModel?.getPhotos()
+        viewModel.getPhotos()
         bindViewModel()
     }
 
@@ -42,11 +53,7 @@ extension PhotosViewController: UICollectionViewDataSource, UICollectionViewDele
     }
     
     func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
-        guard let count = viewModel?.photoCells.value.count else {
-            return 0
-        }
-        
-        return count
+        return viewModel.photoCells.value.count
     }
     
     func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
@@ -54,16 +61,13 @@ extension PhotosViewController: UICollectionViewDataSource, UICollectionViewDele
         
         if let cell = cell {
             
-            let cellViewModel = self.viewModel?.photoCells.value[indexPath.row]
+            let cellViewModel = self.viewModel.photoCells.value[indexPath.row]
             
             cell.viewModel = cellViewModel
             
-            if let umageURL = cellViewModel?.imageURL {
-                
-                imageLoader.obtainImageWithPath(imagePath: umageURL) { (image) in
-                    // Before assigning the image, check whether the current cell is visible
-                    cell.image.image = image
-                }
+            imageLoader.obtainImageWithPath(imagePath: cellViewModel.imageURL) { (image) in
+                // Before assigning the image, check whether the current cell is visible
+                cell.image.image = image
             }
 
         }
@@ -74,26 +78,52 @@ extension PhotosViewController: UICollectionViewDataSource, UICollectionViewDele
 
 extension PhotosViewController: UICollectionViewDelegate {
     
-    func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
-        if scrollView == self.collectionView {
-            var currentCellOffset = self.collectionView.contentOffset
-            currentCellOffset.x += self.collectionView.frame.width / 2
-            if let indexPath = self.collectionView.indexPathForItem(at: currentCellOffset) {
-                self.collectionView.scrollToItem(at: indexPath, at: .centeredHorizontally, animated: true)
+    func scrollViewWillEndDragging(_ scrollView: UIScrollView, withVelocity velocity: CGPoint, targetContentOffset: UnsafeMutablePointer<CGPoint>) {
+        
+        let pageWidth = Float(itemWidth + itemSpacing)
+        let targetXContentOffset = Float(targetContentOffset.pointee.x)
+        let contentWidth = Float(collectionView.contentSize.width  )
+        var newPage = Float(currentItem)
+        
+        if velocity.x == 0 {
+            newPage = floor( (targetXContentOffset - Float(pageWidth) / 2) / Float(pageWidth)) + 1.0
+        } else {
+            newPage = Float(velocity.x > 0 ? currentItem + 1 : currentItem - 1)
+            if newPage < 0 {
+                newPage = 0
+            }
+            if (newPage > contentWidth / pageWidth) {
+                newPage = ceil(contentWidth / pageWidth) - 1.0
             }
         }
+        
+        currentItem = Int(newPage)
+        let point = CGPoint (x: CGFloat(newPage * pageWidth), y: targetContentOffset.pointee.y)
+        targetContentOffset.pointee = point
+        
+        
+        if currentItem < viewModel.photoCells.value.count {
+            // update pages label
+            pagesLabel.text = "tip \(page) of \(viewModel.photoCells.value.count) pages"
+        }
     }
+
 }
 
 extension PhotosViewController {
     func bindViewModel() {
-        viewModel?.photoCells.bindAndFire { [weak self] cells in
+        viewModel.photoCells.bindAndFire { [weak self] cells in
             DispatchQueue.main.async {
                 self?.collectionView.reloadData()
+                
+                if let page = self?.page, let count = self?.viewModel.photoCells.value.count {
+                    // update pages label
+                    self?.pagesLabel.text = "tip \(page) of \(count) pages"
+                }
             }
         }
         
-        viewModel?.showLoadingHud.bind() { visible in
+        viewModel.showLoadingHud.bind() { visible in
             
             DispatchQueue.main.async {
                 PKHUD.sharedHUD.contentView = PKHUDSystemActivityIndicatorView()
@@ -101,7 +131,7 @@ extension PhotosViewController {
             }
         }
         
-        viewModel?.onShowError = { [weak self] message in
+        viewModel.onShowError = { [weak self] message in
             let alert = UIAlertController.init(title: "Error", message: message, preferredStyle: .alert)
             alert.addAction(UIAlertAction.init(title: "Cancel", style: .cancel, handler: nil))
             
@@ -109,5 +139,26 @@ extension PhotosViewController {
                 self?.present(alert, animated: true, completion: nil)
             }
         }
+    }
+    
+    private func setup() {
+        
+        let layout: UICollectionViewFlowLayout = UICollectionViewFlowLayout()
+        
+        itemWidth =  UIScreen.main.bounds.width - collectionMargin * 2.0
+        debugPrint("\(itemWidth)")
+        layout.sectionInset = UIEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
+        layout.itemSize = CGSize(width: itemWidth, height: itemHeight)
+        layout.headerReferenceSize = CGSize(width: collectionMargin, height: 0)
+        layout.footerReferenceSize = CGSize(width: collectionMargin, height: 0)
+        
+        layout.minimumLineSpacing = itemSpacing
+        layout.scrollDirection = .horizontal
+        collectionView.collectionViewLayout = layout
+        collectionView.decelerationRate = UIScrollViewDecelerationRateFast
+        
+        collectionView.dataSource = self
+        collectionView.delegate = self
+        
     }
 }

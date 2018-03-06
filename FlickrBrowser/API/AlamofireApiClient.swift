@@ -20,12 +20,9 @@ class AlamofireApiClient: ApiClient {
                 } else {
                     completion(.failure(FlickrBrowserError(title: nil, description: "Error parsing JSON", code: .invalidResponse)))
                 }
-                break
             case .failure(let error):
                 debugPrint(error.localizedDescription)
-                completion(.failure(FlickrBrowserError(title: nil, description: error.localizedDescription, code: .invalidRequest)))
-                
-                break
+                completion(.failure(FlickrBrowserError(title: nil, description: error.localizedDescription, code: .invalidRequest)))                
             }
         }
     }

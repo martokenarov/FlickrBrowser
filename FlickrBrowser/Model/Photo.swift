@@ -40,16 +40,16 @@ struct Photo {
 
 extension Photo {
     init?(with json:JSON) {
-        guard let id = json[idKey].string, let owner = json[ownerKey].string, let secret = json[secretKey].string, let server = json[serverKey].string, let farm = json[farmKey].int, let title = json[titleKey].string else {
+        guard let id = json[idKey].string, let secret = json[secretKey].string, let server = json[serverKey].string, let farm = json[farmKey].int else {
             return nil
         }
         
         self.id = id
-        self.owner = owner
+        self.owner = json[ownerKey].stringValue
         self.secret = secret
         self.server = server
         self.farm = farm
-        self.title = title
+        self.title = json[titleKey].stringValue
         
         self.imageUrl = "https://farm\(farm).staticflickr.com/\(server)/\(id)_\(secret)_m.jpg"
     }

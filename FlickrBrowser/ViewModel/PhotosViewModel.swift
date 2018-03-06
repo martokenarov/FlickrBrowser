@@ -28,7 +28,6 @@ class PhotosViewModel {
             switch result {
             case .success(let payload):
                 self?.populateCells(photos: payload.photos)
-                break
             case.failure(let error):
                 
                 if let error = error {
@@ -37,7 +36,6 @@ class PhotosViewModel {
                     self?.onShowError?("Something went wrong!")
                 }
                 
-                break
             }
         }
     }
